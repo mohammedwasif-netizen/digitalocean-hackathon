@@ -211,7 +211,14 @@ async def stream(ws: WebSocket, session_id: str):
                 async def emit_fixture(value: Claim):
                     await send("claim_state", {"public_id": value.public_id, "state": value.state})
 
-                await run_hero(session_id, repo, providers, emit_fixture)
+                completed = await run_hero(session_id, repo, providers, emit_fixture)
+                if completed.verdict:
+                    await __import__("asyncio").to_thread(
+                        cross_device.notify,
+                        session_id,
+                        completed.public_id,
+                        completed.verdict.explanation,
+                    )
                 continue
             if not _authenticated(ws, session_id):
                 await send("error", {"code": "unauthorized"}, env.sequence)

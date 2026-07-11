@@ -1,1 +1,1 @@
-{"name":"Verity","short_name":"Verity","start_url":"/","display":"standalone","background_color":"#f2f7f2","theme_color":"#145c3d","icons":[]}
+{"name":"Verity","short_name":"Verity","description":"Evidence-backed context for factual claims","id":"/","start_url":"/","scope":"/","display":"standalone","background_color":"#f2f7f2","theme_color":"#145c3d","icons":[{"src":"/verity-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

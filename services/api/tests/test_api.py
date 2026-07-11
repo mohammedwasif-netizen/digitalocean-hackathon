@@ -1,4 +1,6 @@
 from app.domain.models import ClaimState
+from app import main
+from app.cross_device import CrossDeviceCoordinator, FakePushAdapter
 
 def create_session(client, key="same-key"):
     response = client.post("/v1/sessions", json={"idempotency_key": key})
@@ -41,6 +43,34 @@ def test_websocket_emits_all_pipeline_states_and_replay_does_not_duplicate(clien
         assert states == [state.value for state in list(ClaimState)[:7]]
         ws.send_json(message)
         assert ws.receive_json()["type"] == "error"
+
+def test_extension_fixture_delivers_exactly_one_paired_notification(client):
+    push = FakePushAdapter()
+    main.cross_device = CrossDeviceCoordinator(secret="fixture-push-test", push=push)
+    session = create_session(client, "socket-push")
+    pairing = client.post("/v1/pairings", json={"session_id": session["id"]}).json()
+    device = client.post("/v1/pairings/redeem", json={
+        "code": pairing["code"], "device_label": "Demo iPhone",
+    }).json()
+    subscription = client.post("/v1/push-subscriptions", json={
+        "device_id": device["device_id"],
+        "device_token": device["device_token"],
+        "endpoint": "https://push.example/fixture",
+        "p256dh": "p" * 32,
+        "auth": "a" * 16,
+    })
+    assert subscription.status_code == 201
+
+    with client.websocket_connect(f'/v1/sessions/{session["id"]}/stream') as ws:
+        ws.send_json({"type":"start_fixture", "session_id":session["id"], "sequence":1, "payload":{}})
+        assert ws.receive_json()["type"] == "ack"
+        for _ in range(7):
+            ws.receive_json()
+
+    assert len(push.deliveries) == 1
+    payload = push.deliveries[0][1]
+    assert payload["notification_id"] == f'claim:{payload["public_id"]}'
+    assert payload["title"] == "Verity found context"
 
 def test_live_websocket_records_finals_and_creates_target_claim_once(client):
     session = create_session(client, "live")
